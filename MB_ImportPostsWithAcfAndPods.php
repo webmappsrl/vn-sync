@@ -30,11 +30,50 @@ class MB_ImportPostsWithAcfAndPods
         'when' => array(
             'field_type' => 'pods_fields',
             'field_name' => 'periodo'
+        ),
+        'activity' => array(
+            'field_type' => 'pods_fields',
+            'field_name' => 'tipo'
+        ),
+        'who' => array(
+            'field_type' => 'pods_fields',
+            'field_name' => 'tipo'
+        ),
+        'where' => array(
+            'field_type' => 'pods_fields',
+            'field_name' => 'dest'
         )
     );
     public $terms_imported = array();
 
     public $taxonomies_to_import = array();
+
+    //METAFIELDS
+    //new key => old key
+    public $meta_fields = array(
+        "vn_sih" => "sih",
+        "vn_fdn" => "fdn",
+        "vn_new" => "new",
+        "vn_diff" => "diff",
+        "vn_mezza_pensione" => "mezza_pensione",
+        "vn_sopraponte" => "sopraponte",
+        "vn_durata" => "durata",
+        "vn_note_dur" => "note_dur",
+        "vn_partenze" => "partenze",
+        "vn_part_sum" => "part_sum",
+        "vn_desc_min" => "desc_min",
+        "vn_note" => "note",
+        "vn_desc" => "desc",
+        "vn_prog" => "prog",
+        "vn_scheda_tecnica" => "scheda_tecnica",
+        "vn_part_pr" => "part_pr",
+        "vn_come_arrivare" => "come_arrivare",
+        "vn_latitude" => "latitude",
+        "vn_longitude" => "longitude",
+        "vn_prezzo" => "prezzo",
+        "vn_prezzo_sc" => "prezzo_sc",
+        "vn_ordine" => "ordine"
+    );
 
     //ENVIROMENT ELEMENTS
     public $taxonomies;
@@ -132,10 +171,39 @@ class MB_ImportPostsWithAcfAndPods
                             if ( isset( $old_terms['term_id'] ) )
                                 $old_terms = array( $old_terms );
 
+
                             foreach ($old_terms as $term)
                             {
                                 $name = $term['name'];
-                                $search = array_search($name, $this->terms_imported[$webMapp_tax] );
+                                $slug = $term['slug'];
+
+                                $real_taxonomy = $webMapp_tax;
+
+                                //filter TIPOLOGIA
+                                if ( $field_name == 'tipo' )
+                                {
+                                    //filter TIPOLOGIA -> activity
+                                    if ( in_array($slug, array(
+                                        'in-bicicletta',
+                                        'bici-e-barca',
+                                        'a-piedi',
+                                    ) ) )
+                                    {
+                                        $real_taxonomy = 'activity';
+                                    }
+                                    //filter TIPOLOGIA -> who
+                                    elseif( in_array($slug, array(
+                                        'in-famiglia',
+                                        'esplorazione'
+                                    ) ) )
+                                    {
+                                        $real_taxonomy = 'who';
+                                    }
+                                }
+
+                                $search = array_search($name, $this->terms_imported[$real_taxonomy] );
+
+
                                 if ( ! $search )
                                 {
                                     $this->writeLog( "Impossible find in db a term in taxonomy: $webMapp_tax with name $name" , 'ERROR' );
@@ -161,14 +229,20 @@ class MB_ImportPostsWithAcfAndPods
                     )
                 );
 
+                //METAFIELDS
+                $meta_fields = array(
+                    $this->meta_key_post_identifier => $old_post_cod
+                );
+                foreach( $this->meta_fields as $new_key => $old_key )
+                {
+                    if ( isset( $post['pods_fields'][$old_key] ) )
+                        $meta_fields[$new_key] = $post['pods_fields'][$old_key];
+                }
+
 
                 if ( count($posts ) == 0 )
                 {
-                    $this->writeLog( "Impossible find a post with cod: $old_post_cod. A new one will be create." );
-
-                    $meta_fields = array(
-                        $this->meta_key_post_identifier => $old_post_cod
-                    );
+                    $this->writeLog( "Impossible find a post with cod: $old_post_cod. A new one will be create." , 'SUCCESS');
 
                     //create new post
                     $post_id = $this->update_create_post( $post['pods_fields']['titolo'] ,$meta_fields );
@@ -274,7 +348,7 @@ class MB_ImportPostsWithAcfAndPods
             foreach ( $terms as $term )
             {
                 $check = wp_insert_term($term['name'] ,$taxonomy_name );
-                if ( $check instanceof WP_Error )
+                if ( $check instanceof WP_Error )//probably term already exists
                 {
                     $this->writeLog("Impossible create term with name: " . $term['name'] . " in $taxonomy_name taxonomy. Error: " . $check->get_error_message() );
                     if ( isset( $check->error_data['term_exists'] ) )
@@ -314,19 +388,45 @@ class MB_ImportPostsWithAcfAndPods
                         if ( isset( $old_terms['term_id'] ) )
                             $old_terms = array( $old_terms );
 
+
                         foreach ( $old_terms as $term )
                         {
                             $old_term_id = $term[ 'term_id' ];
+                            $old_term_slug = $term[ 'slug' ];
+                            $write = true;
 
-                            if ( ! isset( $this->taxonomies_to_import[$webMapp_tax][$old_term_id] ) )
+                            //filter TIPOLOGIA -> activity
+                            if ( $field_name == 'tipo' && $webMapp_tax == 'activity' )
+                            {
+                                if ( ! in_array($old_term_slug, array(
+                                    'in-bicicletta',
+                                    'bici-e-barca',
+                                    'a-piedi',
+                                ) ) )
+                                $write = false;
+                            }
+                            //filter TIPOLOGIA -> who
+                            elseif( $field_name == 'tipo' && $webMapp_tax == 'who' )
+                            {
+                                if ( ! in_array($old_term_slug, array(
+                                    'in-famiglia',
+                                    'esplorazione'
+                                ) ) )
+                                    $write = false;
+                            }
+
+                            //DEFAULT
+                            if ( $write && ! isset( $this->taxonomies_to_import[$webMapp_tax][$old_term_id] ) )
                             {
                                 $this->taxonomies_to_import[$webMapp_tax][$old_term_id] = array(
                                     'name' => $term[ 'name' ],
-                                    'slug' => $term[ 'slug' ]
+                                    'slug' => $old_term_slug
                                 );
                             }
 
+
                         }
+
                     }
                     else
                     {

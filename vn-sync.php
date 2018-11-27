@@ -2,7 +2,7 @@
 /*
 Plugin Name: Vn Sync
 Description: Export a json and reimport it, useful for webmapp plugin and origin site with pods/acf fields
-Version: 0.1
+Version: 0.2
 Author: Marco Baroncini
 */
 
