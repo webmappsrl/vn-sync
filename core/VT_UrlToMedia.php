@@ -24,46 +24,30 @@ class VT_UrlToMedia
     public $attachment_filepath;
 
 
-    function __construct( $post , $meta_key )
+    function __construct( $post , $url , $meta_key )
     {
+
+        if ( is_numeric( $post ) )
+            $post = get_post( $post );
+
+
         $this->post = $post;
         $this->post_id = $post->ID;
 
-        /**
-         * Check meta_key integrity
-         */
-        if ( empty( $meta_key ) )
+
+        if ( filter_var($url, FILTER_VALIDATE_URL) === false )
         {
-            $this->writeLog( 'Missing meta key to import url' );
+            $this->writeLog( 'Value stored in meta key provided isn\'t a url : ' . $url . '. Check post with id: ' . $this->post_id);
             return;
         }
 
-
-        $meta_key = filter_var($meta_key, FILTER_SANITIZE_STRING );
-        $meta_value = get_post_meta( $this->post_id ,$meta_key , true);
-
-        if ( ! $meta_value )
-        {
-            $this->writeLog( 'Meta value doesn\'t exists for this meta key. Impossible to import anything for post id: ' . $this->post_id );
-            return;
-        }
-
-
-        if ( filter_var($meta_value, FILTER_VALIDATE_URL) === false )
-        {
-            $this->writeLog( 'Value stored in meta key provided isn\'t a url : ' . $meta_value . '. Check post with id: ' . $this->post_id);
-            return;
-        }
-
-        $this->url_to_import = $meta_value;
+        $this->url_to_import = $url;
 
         if ( strpos( $this->url_to_import,home_url() ) !== false )
         {
             $this->writeLog( 'Resource is already on this domain. Check post with id: ' . $this->post_id);
             return;
         }
-
-
 
 
         $this->meta_key = $meta_key;
@@ -94,12 +78,11 @@ class VT_UrlToMedia
 
         if ( $contents === false )
         {
-            $this->url_to_import = str_replace( 'http' , 'https' , $this->url_to_import );
+            //$this->url_to_import = str_replace( 'http' , 'https' , $this->url_to_import );
             $contents = file_get_contents( $this->url_to_import );
             if ( $contents === false )
             {
                 $this->writeLog( 'Impossible get contents in url provided ( http or in https ): ' . $this->url_to_import . '. Set empty value. Check in post with id: ' . $this->post_id );
-                update_post_meta( $this->post_id , $this->meta_key , '');
                 return false;
             }
 
@@ -163,7 +146,8 @@ class VT_UrlToMedia
 
     function update_old_meta()
     {
-        $test = update_post_meta( $this->post_id ,  $this->meta_key ,$this->attachment_url );
+        if ( $this->meta_key)
+            $test = update_post_meta( $this->post_id ,  $this->meta_key ,$this->attachment_id );
     }
 
     function writeLog( $log_msg )
@@ -181,7 +165,13 @@ class VT_UrlToMedia
         $check = file_put_contents($log_file_data, $log_msg . "\n", FILE_APPEND);
     }
 
+    function get_attachment()
+    {
+        return $this->attachment_id;
+    }
+
 
 
 }
+
 

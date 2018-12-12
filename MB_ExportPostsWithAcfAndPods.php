@@ -80,7 +80,6 @@ class MB_ExportPostsWithAcfAndPods
             $post_array = get_post( $post_id , ARRAY_A );
             $taxonomies = get_taxonomies();
 
-
             /**
              * ACF
              */
@@ -117,7 +116,7 @@ class MB_ExportPostsWithAcfAndPods
 
                     if ( $language_code != $lang )
                     {
-                        $tr = apply_filters( 'wpml_object_id', $post_id, $this->post_type , FALSE, $lang );
+                        $tr = apply_filters( 'wpml_object_id', $post_id, $this->post_type , FALSE, $language_code );
                         if ( $tr )
                             $translations[ $language_code ] = $tr;
                     }
@@ -169,8 +168,6 @@ class MB_ExportPostsWithAcfAndPods
         endwhile;
 
         wp_reset_query();
-
-        $stop = '';
 
         $this->writeJsonFromPhp( $r_php_array , $lang );
     }

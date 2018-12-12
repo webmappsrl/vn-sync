@@ -17,6 +17,7 @@ define('MB_IMPORT_LOG_DIR_URL' , plugin_dir_url( MB_IMPORT_EXPORT_FILE ) . 'impo
  */
 require('core/VT_UrlToMedia.php');
 require('core/VT_UrlToMedia_FeaturedImage.php');
+require('core/VT_UrlToMedia_Gallery.php');
 require('core/WebMapp_AdminOptionsPage.php');
 require('core/VtAjaxHandler.php');
 

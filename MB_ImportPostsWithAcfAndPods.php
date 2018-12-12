@@ -11,8 +11,11 @@ class MB_ImportPostsWithAcfAndPods
 
 
     //FILE CONTENT VARS
-    public $main_file_php;
-    public $main_file_json;
+    public $main_file_php;//italian
+    public $main_file_json;//italian
+
+    public $eng_file_php;
+    public $eng_file_json;
 
     /**
     public $translated_files_paths;
@@ -22,7 +25,6 @@ class MB_ImportPostsWithAcfAndPods
     //ENVIROMENT VARS
     public $post_type;
     public $post_type_from;
-    public $lang;
     private $today;
 
     //TAXONOMIES VARS
@@ -72,7 +74,12 @@ class MB_ImportPostsWithAcfAndPods
         "vn_longitude" => "longitude",
         "vn_prezzo" => "prezzo",
         "vn_prezzo_sc" => "prezzo_sc",
-        "vn_ordine" => "ordine"
+        "vn_ordine" => "ordine",
+        //immagini
+        "vn_immagine_mappa" => "immagine_mappa",
+        'featured_image' => "image",
+        "n7webmap_track_media_gallery" => 'gallery',
+
     );
 
     //ENVIROMENT ELEMENTS
@@ -83,6 +90,10 @@ class MB_ImportPostsWithAcfAndPods
     public $meta_key_post_identifier = 'n7webmapp_route_cod';
     public $meta_key_post_identifier_old = 'cod';
     public $meta_key_post_identifier_old_type = 'pods_fields';
+
+    // posts imported
+    // old_id => new_id
+    public $posts_imported = array();
 
 
 
@@ -96,7 +107,7 @@ class MB_ImportPostsWithAcfAndPods
 
         $this->post_type = $post_type;
         $this->post_type_from = $post_type_from;
-        $this->lang = $lang;
+
         $this->today = $now_days = date('d-m-Y');
 
         try
@@ -117,11 +128,19 @@ class MB_ImportPostsWithAcfAndPods
         try
         {
             $this->init();
-            $this->prepare_taxonomies();
+
+            //prepare an array of taxonomies
+            $this->prepare_taxonomies( $this->main_file_php );
+
+            //impossible to
+            //$this->prepare_taxonomies( $this->eng_file_php );
+
             $this->insert_terms();
-            $this->update_posts();
 
+            $this->update_posts( $this->main_file_php ,'it' );
+            $this->update_posts( $this->eng_file_php , 'en' );
 
+            $this->writeLog( 'END IMPORT' , 'SUCCESS' );
 
         }
         catch( Exception $e )
@@ -131,23 +150,14 @@ class MB_ImportPostsWithAcfAndPods
 
     }
 
-    function update_posts()
+    function update_posts( $file , $lang )
     {
+        $this->posts_iteration( $file , $lang );
+    }
 
-        /**
-         * Wpml
-         * switch language before query
-         */
-        $lang = $this->lang ? $this->lang : 'it';
-
-        if ( $lang )
-        {
-            global $sitepress;
-            $sitepress->switch_lang($lang, true);
-        }
-
-
-        foreach ( $this->main_file_php as $id => $post )
+    function posts_iteration( $php_file , $lang )
+    {
+        foreach ( $php_file as $id => $post )
         {
             if ( isset( $post[ $this->meta_key_post_identifier_old_type ][ $this->meta_key_post_identifier_old ] )
                 && $post[ $this->meta_key_post_identifier_old_type ][ $this->meta_key_post_identifier_old ]
@@ -201,8 +211,9 @@ class MB_ImportPostsWithAcfAndPods
                                     }
                                 }
 
-                                $search = array_search($name, $this->terms_imported[$real_taxonomy] );
-
+                                $search = false;
+                                if ( isset( $this->terms_imported[$real_taxonomy] ) )
+                                    $search = array_search($name, $this->terms_imported[$real_taxonomy] );
 
                                 if ( ! $search )
                                 {
@@ -218,6 +229,18 @@ class MB_ImportPostsWithAcfAndPods
                     }
                 }
 
+
+                /**
+                 * Wpml
+                 * switch language before query
+                 */
+                global $sitepress;
+                if ( $lang != 'it' )
+                    $sitepress->switch_lang($lang, true);
+
+
+
+
                 //search posts with this cod
                 $posts = get_posts(
                     array(
@@ -225,9 +248,14 @@ class MB_ImportPostsWithAcfAndPods
                         'post_type' => $this->post_type,
                         'meta_key' => $this->meta_key_post_identifier,
                         'meta_value' => $old_post_cod,
-                        'post_status' => 'any'
+                        'post_status' => 'any',
+                        'suppress_filters' => false
                     )
                 );
+
+
+                $sitepress->switch_lang('it', true);
+
 
                 //METAFIELDS
                 $meta_fields = array(
@@ -239,23 +267,61 @@ class MB_ImportPostsWithAcfAndPods
                         $meta_fields[$new_key] = $post['pods_fields'][$old_key];
                 }
 
+                /**
+                 * POST CONTENT
+                 */
+                $post_content = isset($post['post_content']) ? $post['post_content'] : '';
+                $post_id = false;
+
+
+                /**
+                 * POST TRANSLATIONS
+                 */
+                $translations = array();
+                if ( $lang != 'it' )
+                    $translations = isset( $post['translations'] ) && is_array($post['translations'] ) ? $post['translations'] : array();
 
                 if ( count($posts ) == 0 )
                 {
                     $this->writeLog( "Impossible find a post with cod: $old_post_cod. A new one will be create." , 'SUCCESS');
 
                     //create new post
-                    $post_id = $this->update_create_post( $post['pods_fields']['titolo'] ,$meta_fields );
+                    $post_id = $this->update_create_post( $post['pods_fields']['titolo'] ,$post_content, $meta_fields );
                     $this->add_post_terms($post_id ,$post_terms);
                 }
                 elseif ( count($posts ) == 1 )
                 {
+                    $post_id = $posts[0];
+                    $post_id = $post_id->ID;
+
                     $this->writeLog("Post with cod: $old_post_cod already exists.");
                 }
                 elseif ( count($posts ) > 1 )
                 {
                     $this->writeLog("There are more than 1 posts with cod: $old_post_cod." , "ERROR" );
                 }
+
+
+                if ( $post_id )
+                {
+                    $this->posts_imported[$id] = $post_id;
+
+
+                    //set translations
+                    //translations can be empty
+                    //used only if lang != 'it'
+                    foreach ( $translations as $lang_code => $tr_post_id )
+                    {
+                        $italian_post_id = isset( $this->posts_imported[$tr_post_id] ) ? $this->posts_imported[$tr_post_id] : false;
+                        if ( $italian_post_id )
+                            $this->vt_wpml_set_post_translation( $italian_post_id , $post_id , $lang );
+                    }
+                }
+
+
+
+
+
             }
             else
             {
@@ -272,7 +338,7 @@ class MB_ImportPostsWithAcfAndPods
 
     }
 
-    function update_create_post( $title, $meta_fields = array() , $post_id = false )
+    function update_create_post( $title, $post_content = '' , $meta_fields = array() , $post_id = false )
     {
 
         $title = wp_strip_all_tags( $title );
@@ -291,7 +357,7 @@ class MB_ImportPostsWithAcfAndPods
         else
         {
             $other_post_args = array(
-                'post_content'  => '',
+                'post_content'  => $post_content,
                 'post_status'   => 'publish',
                 'post_author'   => 1,
                 'post_type'     => $this->post_type
@@ -319,15 +385,66 @@ class MB_ImportPostsWithAcfAndPods
 
         foreach ( $meta_fields as $meta_key => $meta_value )
         {
-            update_post_meta( $post_id , $meta_key, $meta_value );
+            if ( $meta_key == 'featured_image' )
+            {
+                if ( isset( $meta_value['guid'] ) && $meta_value['guid'] )
+                {
+                    $actual_url = $this->get_image_url( $meta_value['guid'] );
+                    new VT_UrlToMedia_FeaturedImage($post_id,$actual_url);
+                }
+
+            }
+            elseif( $meta_key == 'vn_immagine_mappa' )
+            {
+                if ( isset( $meta_value['guid'] ) && $meta_value['guid'] )
+                {
+                    $actual_url = $actual_url = $this->get_image_url( $meta_value['guid'] );
+                    new VT_UrlToMedia( $post_id , $actual_url ,$meta_key );
+                }
+
+            }
+            elseif( $meta_key == 'n7webmap_track_media_gallery' )
+            {
+
+                $urls = array_map(function($i)
+                {
+                    if ( isset( $i['guid'] ) )
+                        return $i['guid'];
+                    else return false;
+                    },
+                    $meta_value );
+
+                $urls = $this->get_image_urls( $urls );
+
+                new VT_UrlToMedia_Gallery( $post_id , $urls , $meta_key );
+            }
+            else
+                update_post_meta( $post_id , $meta_key, $meta_value );
         }
 
 
-        return $check;
+
+        return $post_id;
 
 
     }
 
+    function get_image_url( $url )
+    {
+        $pos = strpos($url , '/wp-content/');
+        $actual_url = 'https://www.verde-natura.it/wpsite' . substr( $url , $pos );
+        return $actual_url;
+    }
+
+    function get_image_urls( $urls )
+    {
+        $new_urls = array();
+        foreach ( $urls as $url )
+            if ( $url )
+                $new_urls[] = $this->get_image_url($url );
+
+        return $new_urls;
+    }
 
     /**
      * Create new terms in db
@@ -368,10 +485,11 @@ class MB_ImportPostsWithAcfAndPods
 
     /**
      * Load all taxonomies
+     * @param $file
      */
-    function prepare_taxonomies()
+    function prepare_taxonomies( $file )
     {
-        foreach ( $this->main_file_php as $id => $post )
+        foreach ( $file as $id => $post )
         {
             foreach ( $this->taxonomies_fields as $webMapp_tax => $details )
             {
@@ -445,10 +563,15 @@ class MB_ImportPostsWithAcfAndPods
      */
     function init()
     {
+        //italian
         $this->main_file_json = (string) $this->get_content();
         $this->main_file_php = (array) json_decode( $this->main_file_json , true );
 
-        if ( ! $this->main_file_php )
+        //english
+        $this->eng_file_json = (string) $this->get_content( 'en' );
+        $this->eng_file_php = (array) json_decode( $this->eng_file_json , true );
+
+        if ( ! $this->main_file_php || ! $this->eng_file_php )
         {
             $error = "Impossible convert json in php";
             $this->writeLog($error , 'ERROR' );
@@ -458,13 +581,11 @@ class MB_ImportPostsWithAcfAndPods
     }
 
 
-    function get_content()
+    function get_content( $lang = 'it' )
     {
         $filepath = $this->main_file_path . 'fields_export_last_' . $this->post_type_from . '_';
-        if ( $this->lang )
-            $filepath .= $this->lang;
-        else
-            $filepath .= 'it';
+
+        $filepath .= $lang;
 
         $filepath .= '.json';
 
@@ -512,6 +633,42 @@ class MB_ImportPostsWithAcfAndPods
         $check2 = file_put_contents($this->log_file_path,$msg  . "\n", FILE_APPEND);
 
         return $check1 && $check2;
+    }
+
+
+
+    /**
+     * @param $post_id
+     * @param $translated_post_id
+     * @param $language_code
+     * @return bool
+     */
+    function vt_wpml_set_post_translation( $post_id , $translated_post_id , $language_code )
+    {
+        // get the language info of the original post
+        // https://wpml.org/wpml-hook/wpml_element_language_details/
+
+        $post = get_post( $post_id );
+        if ( ! $post )
+            return false;
+
+        $post_type = $post->post_type;
+
+        $get_language_args = array( 'element_id' => $post_id , 'element_type' => $post_type );
+        $original_post_language_info = apply_filters( 'wpml_element_language_details', null, $get_language_args );
+
+        $set_language_args = array(
+            'element_id' => $translated_post_id,
+            'element_type' => "post_$post_type",
+            'trid' => $original_post_language_info->trid,
+            'language_code' => $language_code,
+            'source_language_code' => $original_post_language_info->language_code
+        );
+
+
+        do_action( 'wpml_set_element_language_details', $set_language_args );
+
+        return true;
     }
 
 }
