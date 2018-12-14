@@ -19,7 +19,7 @@ class VT_UrlToMedia_Gallery
 
 
 
-    function __construct( $post , $urls , $meta_key )
+    function __construct( $post , $urls , $meta_key , $details)
     {
 
 
@@ -32,9 +32,9 @@ class VT_UrlToMedia_Gallery
 
         $attachments = array();
 
-        foreach ( $urls as $url )
+        foreach ( $urls as $key => $url )
         {
-            $attachment = new VT_UrlToMedia( $post , $url , '' );
+            $attachment = new VT_UrlToMedia( $post , $url , '' ,$details[$key] );
             $attachment_id = $attachment->get_attachment();
             if ( is_numeric( $attachment_id ) )
                 $attachments[] = $attachment_id;

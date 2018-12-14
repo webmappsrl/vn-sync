@@ -53,6 +53,11 @@ class MB_ImportPostsWithAcfAndPods
     //METAFIELDS
     //new key => old key
     public $meta_fields = array(
+        'featured_image' => "image",
+        "n7webmap_track_media_gallery" => 'gallery'
+    );
+
+    public $new_meta_fields = array(
         "vn_sih" => "sih",
         "vn_fdn" => "fdn",
         "vn_new" => "new",
@@ -75,11 +80,10 @@ class MB_ImportPostsWithAcfAndPods
         "vn_prezzo" => "prezzo",
         "vn_prezzo_sc" => "prezzo_sc",
         "vn_ordine" => "ordine",
+        "vn_meta_dog" => "meta_dog",
+        "vn_hide" => "hide",
         //immagini
-        "vn_immagine_mappa" => "immagine_mappa",
-        'featured_image' => "image",
-        "n7webmap_track_media_gallery" => 'gallery',
-
+        "vn_immagine_mappa" => "immagine_mappa"
     );
 
     //ENVIROMENT ELEMENTS
@@ -267,10 +271,22 @@ class MB_ImportPostsWithAcfAndPods
                         $meta_fields[$new_key] = $post['pods_fields'][$old_key];
                 }
 
+                $new_meta_fields = array();
+                foreach( $this->new_meta_fields as $new_key => $old_key )
+                {
+                    if ( isset( $post['pods_fields'][$old_key] ) )
+                        $new_meta_fields[$new_key] = $post['pods_fields'][$old_key];
+                }
+
                 /**
                  * POST CONTENT
                  */
                 $post_content = isset($post['post_content']) ? $post['post_content'] : '';
+                /**
+                 * POST EXCERPT
+                 */
+                $post_excerpt = isset($post['post_excerpt']) ? $post['post_excerpt'] : '';
+
                 $post_id = false;
 
 
@@ -285,8 +301,10 @@ class MB_ImportPostsWithAcfAndPods
                 {
                     $this->writeLog( "Impossible find a post with cod: $old_post_cod. A new one will be create." , 'SUCCESS');
 
+                    //
+                    $meta_fields_to_update = array_merge( $meta_fields , $new_meta_fields );
                     //create new post
-                    $post_id = $this->update_create_post( $post['pods_fields']['titolo'] ,$post_content, $meta_fields );
+                    $post_id = $this->update_create_post( $post['pods_fields']['titolo'] ,$post_content, $post_excerpt, $meta_fields_to_update );
                     $this->add_post_terms($post_id ,$post_terms);
                 }
                 elseif ( count($posts ) == 1 )
@@ -294,7 +312,12 @@ class MB_ImportPostsWithAcfAndPods
                     $post_id = $posts[0];
                     $post_id = $post_id->ID;
 
-                    $this->writeLog("Post with cod: $old_post_cod already exists.");
+                    $this->writeLog("Post with cod: $old_post_cod already exists, only new metafields will be update on post with id $post_id" , 'SUCCESS');
+
+                    $meta_fields_to_update = $new_meta_fields;
+                    $post_id = $this->update_create_post( $post['pods_fields']['titolo'] ,'', '', $meta_fields_to_update , $post_id );
+
+
                 }
                 elseif ( count($posts ) > 1 )
                 {
@@ -325,7 +348,7 @@ class MB_ImportPostsWithAcfAndPods
             }
             else
             {
-                $this->writeLog("Post with id: " . $post['ID'] . " doesn't have a meta 'cod' identifier");
+                $this->writeLog("Post with id: " . $post['ID'] . " doesn't have a meta 'cod' identifier" , 'ERROR');
             }
 
         }
@@ -338,7 +361,7 @@ class MB_ImportPostsWithAcfAndPods
 
     }
 
-    function update_create_post( $title, $post_content = '' , $meta_fields = array() , $post_id = false )
+    function update_create_post( $title, $post_content = '' , $post_excerpt = '' , $meta_fields = array() , $post_id = false )
     {
 
         $title = wp_strip_all_tags( $title );
@@ -346,7 +369,6 @@ class MB_ImportPostsWithAcfAndPods
         $my_post = array(
             'post_title'   => $title
         );
-
 
 
         if ( $post_id )
@@ -360,7 +382,8 @@ class MB_ImportPostsWithAcfAndPods
                 'post_content'  => $post_content,
                 'post_status'   => 'publish',
                 'post_author'   => 1,
-                'post_type'     => $this->post_type
+                'post_type'     => $this->post_type,
+                'post_excerpt'  => $post_excerpt
 
             );
 
@@ -389,8 +412,9 @@ class MB_ImportPostsWithAcfAndPods
             {
                 if ( isset( $meta_value['guid'] ) && $meta_value['guid'] )
                 {
+                    $details = $this::get_image_details( $meta_value );
                     $actual_url = $this->get_image_url( $meta_value['guid'] );
-                    new VT_UrlToMedia_FeaturedImage($post_id,$actual_url);
+                    new VT_UrlToMedia_FeaturedImage($post_id,$actual_url, $details );
                 }
 
             }
@@ -398,8 +422,9 @@ class MB_ImportPostsWithAcfAndPods
             {
                 if ( isset( $meta_value['guid'] ) && $meta_value['guid'] )
                 {
+                    $details = $this::get_image_details( $meta_value );
                     $actual_url = $actual_url = $this->get_image_url( $meta_value['guid'] );
-                    new VT_UrlToMedia( $post_id , $actual_url ,$meta_key );
+                    new VT_UrlToMedia( $post_id , $actual_url ,$meta_key , $details );
                 }
 
             }
@@ -416,7 +441,14 @@ class MB_ImportPostsWithAcfAndPods
 
                 $urls = $this->get_image_urls( $urls );
 
-                new VT_UrlToMedia_Gallery( $post_id , $urls , $meta_key );
+                $detailss = array_map(function($i)
+                {
+                    return MB_ImportPostsWithAcfAndPods::get_image_details( $i );
+
+                },
+                    $meta_value );
+
+                new VT_UrlToMedia_Gallery( $post_id , $urls , $meta_key , $detailss );
             }
             else
                 update_post_meta( $post_id , $meta_key, $meta_value );
@@ -432,7 +464,38 @@ class MB_ImportPostsWithAcfAndPods
     function get_image_url( $url )
     {
         $pos = strpos($url , '/wp-content/');
-        $actual_url = 'https://www.verde-natura.it/wpsite' . substr( $url , $pos );
+        $file_relative_path = substr( $url , $pos );
+        $verde_natura_base_url = 'https://www.verde-natura.it/wpsite';
+
+        $upload_dir = wp_upload_dir(); // Array of key => value pairs
+        /*
+            $upload_dir now contains something like the following (if successful)
+            Array (
+                [path] => C:\path\to\wordpress\wp-content\uploads\2010\05
+                [url] => http://example.com/wp-content/uploads/2010/05
+                [subdir] => /2010/05
+                [basedir] => C:\path\to\wordpress\wp-content\uploads
+                [baseurl] => http://example.com/wp-content/uploads
+                [error] =>
+            )
+            // Descriptions
+            [path] - base directory and sub directory or full path to upload directory.
+            [url] - base url and sub directory or absolute URL to upload directory.
+            [subdir] - sub directory if uploads use year/month folders option is on.
+            [basedir] - path without subdir.
+            [baseurl] - URL path without subdir.
+            [error] - set to false.
+        */
+
+        $filename = basename($url );
+        $now_folder = date('Y/m');
+        $actual_path = $upload_dir['path'] . '/' . $now_folder . '/' . $filename;
+
+        if ( file_exists( $actual_path ) )
+            $actual_url = $upload_dir['url'] . '/' . $filename;
+        else
+            $actual_url = $verde_natura_base_url . $file_relative_path;
+
         return $actual_url;
     }
 
@@ -446,6 +509,26 @@ class MB_ImportPostsWithAcfAndPods
         return $new_urls;
     }
 
+    static function get_image_details( $image )
+    {
+        $r = array();
+
+        $post_title = isset( $image['post_title'] ) ? $image['post_title'] : false;
+        if ( $post_title )
+            $r['post_title'] = $post_title ;
+
+        $post_excerpt = isset( $image['post_excerpt'] ) ? $image['post_excerpt'] : false;
+        if ( $post_excerpt )
+            $r['post_excerpt'] = $post_excerpt ;
+
+        $post_content = isset( $image['post_content'] ) ? $image['post_content'] : false;
+        if ( $post_content )
+            $r['post_content'] = $post_content;
+
+        return $r;
+
+
+    }
     /**
      * Create new terms in db
      */

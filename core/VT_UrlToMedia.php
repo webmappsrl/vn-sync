@@ -22,9 +22,12 @@ class VT_UrlToMedia
     public $attachment_url;
     public $attachment_filename;
     public $attachment_filepath;
+    public $upload_folder;
+
+    public $image_details;
 
 
-    function __construct( $post , $url , $meta_key )
+    function __construct( $post , $url , $meta_key , $details = array() )
     {
 
         if ( is_numeric( $post ) )
@@ -35,22 +38,40 @@ class VT_UrlToMedia
         $this->post_id = $post->ID;
 
 
-        if ( filter_var($url, FILTER_VALIDATE_URL) === false )
-        {
-            $this->writeLog( 'Value stored in meta key provided isn\'t a url : ' . $url . '. Check post with id: ' . $this->post_id);
-            return;
-        }
+
 
         $this->url_to_import = $url;
 
+        $now_folder = date('Y/m');
+        $this->upload_dir = wp_upload_dir();
+        $this->attachment_filename = filter_var( urldecode( basename( $this->url_to_import ) ) , FILTER_SANITIZE_URL );
+
+        $this->upload_folder = $this->upload_dir['path'] . '/' . $now_folder . '/';
+        if ( ! file_exists($this->upload_folder ) )
+        {
+            // create directory/folder uploads.
+            mkdir($this->upload_folder, 0755 , true );
+            $this->writeLog( 'Create the directory: ' . $this->upload_folder );
+
+        }
+
+
+
+        $this->attachment_filepath =  $this->upload_folder . $this->attachment_filename;
+        $this->image_details = $details;
+        $this->meta_key = $meta_key;
+
         if ( strpos( $this->url_to_import,home_url() ) !== false )
         {
-            $this->writeLog( 'Resource is already on this domain. Check post with id: ' . $this->post_id);
+            $this->writeLog( 'Resource is already on this domain. Try to insert image only in db. Check post with id: ' . $this->post_id );
+
+            $this->insert_attachment();
+
             return;
         }
 
 
-        $this->meta_key = $meta_key;
+
 
         $this->start_url_to_media();
 
@@ -61,8 +82,6 @@ class VT_UrlToMedia
     function start_url_to_media()
     {
 
-        $this->upload_dir = wp_upload_dir();
-
         $check = $this->url_to_media();
         if ( $check )
             $this->writeLog( "Url imported correctly in post with id: $this->post_id. See the file imported : $this->attachment_url" );
@@ -71,41 +90,22 @@ class VT_UrlToMedia
 
     function url_to_media()
     {
-        $this->attachment_filename = filter_var( urldecode( basename( $this->url_to_import ) ) , FILTER_SANITIZE_URL );
-        $this->attachment_filepath = $this->upload_dir['path'] . '/' . $this->attachment_filename;
 
-        $contents= file_get_contents($this->url_to_import );
-
-        if ( $contents === false )
+        $check = false;
+        try
         {
-            //$this->url_to_import = str_replace( 'http' , 'https' , $this->url_to_import );
-            $contents = file_get_contents( $this->url_to_import );
-            if ( $contents === false )
-            {
-                $this->writeLog( 'Impossible get contents in url provided ( http or in https ): ' . $this->url_to_import . '. Set empty value. Check in post with id: ' . $this->post_id );
-                return false;
-            }
-
-        }
-
-        try {
-
+            $contents= file_get_contents($this->url_to_import );
             $savefile = fopen($this->attachment_filepath, 'w');
             fwrite($savefile, $contents);
             fclose($savefile);
-
+            $check = $this->insert_attachment();
         }
         catch( Exception $e )
         {
-            $this->writeLog( $e->getMessage() );
-            return false;
+            $this->writeLog( 'Impossible import image of url provided: ' . $this->url_to_import . '. Check in post with id: ' . $this->post_id );
         }
 
-        $check = $this->insert_attachment();
-
         return $check;
-
-
     }
 
 
@@ -113,12 +113,12 @@ class VT_UrlToMedia
     {
         $wp_filetype = wp_check_filetype($this->attachment_filename, null );
 
-        $attachment = array(
+        $attachment = array_merge( $this->image_details ,array(
             'post_mime_type' => $wp_filetype['type'],
             'post_title' => $this->attachment_filename,
             'post_content' => '',
             'post_status' => 'inherit'
-        );
+        ));
 
 
         $attach_id = wp_insert_attachment( $attachment, $this->attachment_filepath , $this->post_id);
@@ -146,7 +146,7 @@ class VT_UrlToMedia
 
     function update_old_meta()
     {
-        if ( $this->meta_key)
+        if ( $this->meta_key )
             $test = update_post_meta( $this->post_id ,  $this->meta_key ,$this->attachment_id );
     }
 

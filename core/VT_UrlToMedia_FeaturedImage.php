@@ -8,9 +8,9 @@
 class VT_UrlToMedia_FeaturedImage extends VT_UrlToMedia
 {
 
-    function __construct($post, $url )
+    function __construct( $post, $url , $details )
     {
-        parent::__construct($post, $url, $meta_key = '' );
+        parent::__construct($post, $url, $meta_key = '' , $details );
     }
 
     function start_url_to_media()
