@@ -68,8 +68,8 @@ class MB_ExportPostsWithAcfAndPods
         );
         $wp_query = new WP_Query( $args );
 
-        //get only viaggio pods fields
-        $pods_fields = $this->mb_get_pods_fields_by_name('viaggio');
+        //get only $this->post_type pods fields
+        $pods_fields = $this->mb_get_pods_fields_by_name($this->post_type);
 
         $r_php_array = array();
 
@@ -92,7 +92,7 @@ class MB_ExportPostsWithAcfAndPods
              */
 
             $pods_fields_with_values = array();
-            $pods = pods('viaggio' , $post_id );
+            $pods = pods($this->post_type , $post_id );
             foreach( $pods_fields as $key => $pod_field )
             {
                 $pod_field_value = $pods->field( $pod_field , true );

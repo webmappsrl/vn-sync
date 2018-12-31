@@ -142,7 +142,10 @@ class MB_ImportPostsWithAcfAndPods
             $this->insert_terms();
 
             $this->update_posts( $this->main_file_php ,'it' );
+            $this->writeJsonFromPhp( $this->posts_imported , 'it' );
+
             $this->update_posts( $this->eng_file_php , 'en' );
+
 
             $this->writeLog( 'END IMPORT' , 'SUCCESS' );
 
@@ -279,13 +282,14 @@ class MB_ImportPostsWithAcfAndPods
                 }
 
                 /**
-                 * POST CONTENT
+                 * POST ELEMENTS
                  */
-                $post_content = isset($post['post_content']) ? $post['post_content'] : '';
-                /**
-                 * POST EXCERPT
-                 */
-                $post_excerpt = isset($post['post_excerpt']) ? $post['post_excerpt'] : '';
+
+                $post_elements = array(
+                    'post_content' => isset($post['post_content']) ? $post['post_content'] : '',
+                    'post_excerpt' => isset($post['post_excerpt']) ? $post['post_excerpt'] : '',
+                    'post_status' => isset($post['post_status']) ? $post['post_status'] : ''
+                );
 
                 $post_id = false;
 
@@ -304,7 +308,7 @@ class MB_ImportPostsWithAcfAndPods
                     //
                     $meta_fields_to_update = array_merge( $meta_fields , $new_meta_fields );
                     //create new post
-                    $post_id = $this->update_create_post( $post['pods_fields']['titolo'] ,$post_content, $post_excerpt, $meta_fields_to_update );
+                    $post_id = $this->update_create_post( $post['pods_fields']['titolo'] , $post_elements, $meta_fields_to_update );
                     $this->add_post_terms($post_id ,$post_terms);
                 }
                 elseif ( count($posts ) == 1 )
@@ -315,7 +319,7 @@ class MB_ImportPostsWithAcfAndPods
                     $this->writeLog("Post with cod: $old_post_cod already exists, only new metafields will be update on post with id $post_id" , 'SUCCESS');
 
                     $meta_fields_to_update = $new_meta_fields;
-                    $post_id = $this->update_create_post( $post['pods_fields']['titolo'] ,'', '', $meta_fields_to_update , $post_id );
+                    $post_id = $this->update_create_post( $post['pods_fields']['titolo'] , array(), $meta_fields_to_update , $post_id );
 
 
                 }
@@ -361,7 +365,7 @@ class MB_ImportPostsWithAcfAndPods
 
     }
 
-    function update_create_post( $title, $post_content = '' , $post_excerpt = '' , $meta_fields = array() , $post_id = false )
+    function update_create_post( $title, $post_elements , $meta_fields = array() , $post_id = false )
     {
 
         $title = wp_strip_all_tags( $title );
@@ -379,15 +383,11 @@ class MB_ImportPostsWithAcfAndPods
         else
         {
             $other_post_args = array(
-                'post_content'  => $post_content,
-                'post_status'   => 'publish',
                 'post_author'   => 1,
                 'post_type'     => $this->post_type,
-                'post_excerpt'  => $post_excerpt
-
             );
 
-            $my_post = array_merge($other_post_args, $my_post );
+            $my_post = array_merge( $post_elements , $my_post , $other_post_args );
 
             $check = wp_insert_post( $my_post );
         }
@@ -413,7 +413,7 @@ class MB_ImportPostsWithAcfAndPods
                 if ( isset( $meta_value['guid'] ) && $meta_value['guid'] )
                 {
                     $details = $this::get_image_details( $meta_value );
-                    $actual_url = $this->get_image_url( $meta_value['guid'] );
+                    $actual_url = MB_ImportPostsWithAcfAndPods::get_image_url( $meta_value['guid'] );
                     new VT_UrlToMedia_FeaturedImage($post_id,$actual_url, $details );
                 }
 
@@ -423,7 +423,7 @@ class MB_ImportPostsWithAcfAndPods
                 if ( isset( $meta_value['guid'] ) && $meta_value['guid'] )
                 {
                     $details = $this::get_image_details( $meta_value );
-                    $actual_url = $actual_url = $this->get_image_url( $meta_value['guid'] );
+                    $actual_url = $actual_url = MB_ImportPostsWithAcfAndPods::get_image_url( $meta_value['guid'] );
                     new VT_UrlToMedia( $post_id , $actual_url ,$meta_key , $details );
                 }
 
@@ -439,7 +439,7 @@ class MB_ImportPostsWithAcfAndPods
                     },
                     $meta_value );
 
-                $urls = $this->get_image_urls( $urls );
+                $urls = MB_ImportPostsWithAcfAndPods::get_image_urls( $urls );
 
                 $detailss = array_map(function($i)
                 {
@@ -461,11 +461,14 @@ class MB_ImportPostsWithAcfAndPods
 
     }
 
-    function get_image_url( $url )
+    static function get_image_url( $url )
     {
         $pos = strpos($url , '/wp-content/');
         $file_relative_path = substr( $url , $pos );
         $verde_natura_base_url = 'https://www.verde-natura.it/wpsite';
+        $filename = basename( $url );
+        $last_slash_pos = strrpos( $file_relative_path , '/');
+        $file_sub_relative_path = substr( $file_relative_path ,0, $last_slash_pos );
 
         $upload_dir = wp_upload_dir(); // Array of key => value pairs
         /*
@@ -487,24 +490,24 @@ class MB_ImportPostsWithAcfAndPods
             [error] - set to false.
         */
 
-        $filename = basename($url );
+
         $now_folder = date('Y/m');
         $actual_path = $upload_dir['path'] . '/' . $now_folder . '/' . $filename;
 
         if ( file_exists( $actual_path ) )
             $actual_url = $upload_dir['url'] . '/' . $filename;
         else
-            $actual_url = $verde_natura_base_url . $file_relative_path;
+            $actual_url = $verde_natura_base_url . $file_sub_relative_path . '/' . urlencode( $filename );
 
         return $actual_url;
     }
 
-    function get_image_urls( $urls )
+    static function get_image_urls( $urls )
     {
         $new_urls = array();
         foreach ( $urls as $url )
             if ( $url )
-                $new_urls[] = $this->get_image_url($url );
+                $new_urls[] = MB_ImportPostsWithAcfAndPods::get_image_url($url );
 
         return $new_urls;
     }
@@ -752,6 +755,44 @@ class MB_ImportPostsWithAcfAndPods
         do_action( 'wpml_set_element_language_details', $set_language_args );
 
         return true;
+    }
+
+
+    function writeJsonFromPhp( $msg_php , $lang = null )
+    {
+        $folder = "import_logs";
+        $basePath = __DIR__;
+        $dirpath = $basePath . '/' . $folder;
+
+        if ( ! file_exists($dirpath ) )
+        {
+            // create directory/folder uploads.
+            mkdir($dirpath, 0755 , true );
+        }
+
+        $file_path = "$dirpath/last_imported_{$this->post_type}";
+
+        if ( $lang )
+            $file_path .= "_$lang";
+
+        $file_path .= '.json';
+
+        if ( file_exists($file_path ) )
+        {
+            $time = time();
+            $new_filepath = substr( $file_path , 0,-5 );
+            rename($file_path,"{$new_filepath}_before_{$time}.json");
+        }
+
+        $check = false;
+        $msg_json = json_encode( $msg_php );
+        if ( json_last_error() == JSON_ERROR_NONE )
+        {
+            $check = file_put_contents($file_path, $msg_json);
+        }
+
+        return $check;
+
     }
 
 }

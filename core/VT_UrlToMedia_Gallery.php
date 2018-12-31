@@ -21,11 +21,8 @@ class VT_UrlToMedia_Gallery
 
     function __construct( $post , $urls , $meta_key , $details)
     {
-
-
         if ( is_numeric( $post ) )
             $post = get_post( $post );
-
 
         $this->post = $post;
         $this->post_id = $post->ID;
