@@ -14,7 +14,7 @@ $vn_sync = function( $args, $assoc_args )
 {
 
     WP_CLI::line( 'Start importing routes ...' );
-    #new MB_ImportPostsWithAcfAndPods();
+    new MB_ImportPostsWithAcfAndPods();
     WP_CLI::line( 'Routes imported!' );
 
     WP_CLI::line( 'Start importing comments ...' );
