@@ -59,7 +59,7 @@ class MB_ImportPostsWithAcfAndPods
 
     public $new_meta_fields = array(
         "vn_sih" => "sih",
-        "vn_fdn" => "fdn",
+        "wm_fdn" => "fdn",
         "vn_new" => "new",
         "vn_diff" => "diff",
         "vn_mezza_pensione" => "mezza_pensione",
@@ -83,7 +83,10 @@ class MB_ImportPostsWithAcfAndPods
         "vn_meta_dog" => "meta_dog",
         "vn_hide" => "hide",
         //immagini
-        "vn_immagine_mappa" => "immagine_mappa"
+        "vn_immagine_mappa" => "immagine_mappa",
+        //formula
+        "wm_self_guided" => "formula",
+        "wm_guided"  => "formula"
     );
 
     //ENVIROMENT ELEMENTS
@@ -346,9 +349,6 @@ class MB_ImportPostsWithAcfAndPods
                 }
 
 
-
-
-
             }
             else
             {
@@ -450,15 +450,34 @@ class MB_ImportPostsWithAcfAndPods
 
                 new VT_UrlToMedia_Gallery( $post_id , $urls , $meta_key , $detailss );
             }
+            elseif( $meta_key == "wm_self_guided" || $meta_key == "wm_guided" )
+            {
+                $slug = $meta_key == "wm_self_guided" ? 'individuali' : 'guida';
+                if ( $this::formula_exists( $slug , $meta_value ) )
+                    update_post_meta( $post_id , $meta_key, 1 );
+
+            }
             else
                 update_post_meta( $post_id , $meta_key, $meta_value );
         }
 
 
 
+
         return $post_id;
 
 
+    }
+
+    static function formula_exists( $slug , $formule )
+    {
+        if ( ! is_array( $formule ) )
+            return false;
+
+        if ( ! isset( $formule['slug'] ) || $formule['slug'] != $slug )
+            return false;
+
+        return true;
     }
 
     static function get_image_url( $url )
