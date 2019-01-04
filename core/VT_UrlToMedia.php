@@ -63,17 +63,26 @@ class VT_UrlToMedia
 
         if ( strpos( $this->url_to_import,home_url() ) !== false )
         {
-            $this->writeLog( 'Resource is already on this domain. Try to insert image only in db. Check post with id: ' . $this->post_id );
+            $this->writeLog( "WAIT : this resource is already on this server ( $url ). Try to insert image only in db." );
 
-            $this->insert_attachment();
+            $check = $this->insert_attachment();
+
+            if ( $check )
+                $this->writeLog( "SUCCESS : $url resource added in db. Check post with id: $this->post_id" );
+            else
+                $this->writeLog( "ERROR : impossible add $url resource in db for post with id: $this->post_id" );
 
             return;
         }
 
+        $check = $this->start_url_to_media();
+
+        if ( $check )
+            $this->writeLog( "SUCCESS : url imported correctly in post with id: $this->post_id. See the file imported : $this->attachment_url" );
+        else
+            $this->writeLog( "ERROR : impossible import $this->url_to_import resource for post with id: $this->post_id" );
 
 
-
-        $this->start_url_to_media();
 
 
     }
@@ -83,8 +92,7 @@ class VT_UrlToMedia
     {
 
         $check = $this->url_to_media();
-        if ( $check )
-            $this->writeLog( "Url imported correctly in post with id: $this->post_id. See the file imported : $this->attachment_url" );
+
         return $check;
     }
 
@@ -102,7 +110,7 @@ class VT_UrlToMedia
         }
         catch( Exception $e )
         {
-            $this->writeLog( 'Impossible import image of url provided: ' . $this->url_to_import . '. Check in post with id: ' . $this->post_id );
+            $this->writeLog( 'ERROR : Impossible import image of url provided: ' . $this->url_to_import . '. See errors above or check if resource is available. Resource of post with id: ' . $this->post_id );
         }
 
         return $check;
@@ -125,7 +133,7 @@ class VT_UrlToMedia
 
         if ( $attach_id === 0 )
         {
-            $this->writeLog( 'Impossible create attachment in media library for post id: ' . $this->post_id );
+            $this->writeLog( "ERROR : wp_insert_attachment function, impossible create attachment in media library with resource $this->url_to_import for post with id: $this->post_id" );
             return false;
         }
 
@@ -152,16 +160,15 @@ class VT_UrlToMedia
 
     function writeLog( $log_msg )
     {
-        $log_folder = "url_to_media_import";
-        $basePath = __DIR__;
-        $dirpath = $basePath . '/' . $log_folder;
+        $basePath = MB_IMPORT_EXPORT_DIR;
+        $dirpath = $basePath . '/import_logs';
 
         if ( ! file_exists($dirpath ) )
         {
             // create directory/folder uploads.
             mkdir($dirpath, 0755 , true );
         }
-        $log_file_data = $dirpath.'/url_to_media.log';
+        $log_file_data = $dirpath.'/url_to_media_routes.log';
         $check = file_put_contents($log_file_data, $log_msg . "\n", FILE_APPEND);
     }
 

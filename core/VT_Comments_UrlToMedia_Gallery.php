@@ -63,9 +63,15 @@ class VT_Comments_UrlToMedia_Gallery
 
         if ( strpos( $this->url_to_import,home_url() ) !== false )
         {
-            $this->writeLog( 'Resource is already on this domain. Try to insert image only in db. Check comment with id: ' . $this->comment_id );
+            $this->writeLog( "WAIT : this resource is already on this server ( $url ). Try to insert image only in db." );
 
-            $this->insert_attachment();
+            $check = $this->insert_attachment();
+
+            if ( $check )
+                $this->writeLog( "SUCCESS : $url resource added in db. Check comment with id: $this->comment_id" );
+            else
+                $this->writeLog( "ERROR : impossible add $url resource in db for comment with id: $this->comment_id" );
+
 
             return;
         }
@@ -73,7 +79,13 @@ class VT_Comments_UrlToMedia_Gallery
 
 
 
-        $this->start_url_to_media();
+        $check = $this->start_url_to_media();
+
+        if ( $check )
+            $this->writeLog( "SUCCESS : url imported correctly in comment with id: $this->comment_id. See the file imported : $this->attachment_url" );
+        else
+            $this->writeLog( "ERROR : impossible import $this->url_to_import resource for comment with id: $this->comment_id" );
+
 
 
     }
@@ -83,8 +95,7 @@ class VT_Comments_UrlToMedia_Gallery
     {
 
         $check = $this->url_to_media();
-        if ( $check )
-            $this->writeLog( "Url imported correctly in comment with id: $this->comment_id. See the file imported : $this->attachment_url" );
+
         return $check;
     }
 
@@ -102,7 +113,7 @@ class VT_Comments_UrlToMedia_Gallery
         }
         catch( Exception $e )
         {
-            $this->writeLog( 'Impossible import image of url provided: ' . $this->url_to_import . '. Check in comment with id: ' . $this->comment_id );
+            $this->writeLog( 'ERROR : impossible import image of url provided: ' . $this->url_to_import . '. Check in comment with id: ' . $this->comment_id );
         }
 
         return $check;
@@ -125,7 +136,7 @@ class VT_Comments_UrlToMedia_Gallery
 
         if ( $attach_id === 0 )
         {
-            $this->writeLog( 'Impossible create attachment in media library for comment id: ' . $this->comment_id );
+            $this->writeLog( "ERROR : wp_insert_attachment function, impossible create attachment in media library with resource $this->url_to_import for comment with id: $this->comment_id" );
             return false;
         }
 
@@ -147,16 +158,15 @@ class VT_Comments_UrlToMedia_Gallery
 
     function writeLog( $log_msg )
     {
-        $log_folder = "url_to_media_import_comments";
-        $basePath = __DIR__;
-        $dirpath = $basePath . '/' . $log_folder;
+        $basePath = MB_IMPORT_EXPORT_DIR;
+        $dirpath = $basePath . '/import_logs';
 
         if ( ! file_exists($dirpath ) )
         {
             // create directory/folder uploads.
             mkdir($dirpath, 0755 , true );
         }
-        $log_file_data = $dirpath.'/url_to_media.log';
+        $log_file_data = $dirpath.'/url_to_media_comments.log';
         $check = file_put_contents($log_file_data, $log_msg . "\n", FILE_APPEND);
     }
 

@@ -25,12 +25,12 @@ class VT_UrlToMedia_FeaturedImage extends VT_UrlToMedia
             $error = set_post_thumbnail($this->post_id ,$this->attachment_id );
             if ( $error === false )
             {
-                $this->writeLog( 'Impossible set post thumbnail for post id : ' .  $this->post_id );
+                $this->writeLog( 'ERROR : impossible set post thumbnail for post id : ' .  $this->post_id );
             }
         }
         else
         {
-            $this->writeLog( 'Post thumbnail already set on post id : ' .  $this->post_id );
+            $this->writeLog( 'ERROR : post thumbnail already set on post id : ' .  $this->post_id );
         }
 
     }
