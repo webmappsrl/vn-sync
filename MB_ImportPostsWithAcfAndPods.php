@@ -8,6 +8,7 @@ class MB_ImportPostsWithAcfAndPods
     private $plugin_dir = MB_IMPORT_EXPORT_DIR;
     public $main_file_path = MB_IMPORT_EXPORT_DIR . '/exports/';
     private $log_file_path = null;
+    private $log_permalinks_file_path = null;
 
 
     //FILE CONTENT VARS
@@ -323,7 +324,7 @@ class MB_ImportPostsWithAcfAndPods
 
                     $meta_fields_to_update = $new_meta_fields;
                     $post_id = $this->update_create_post( $post['pods_fields']['titolo'] , array(), $meta_fields_to_update , $post_id );
-
+                    $this->add_post_terms($post_id ,$post_terms);
 
                 }
                 elseif ( count($posts ) > 1 )
@@ -336,7 +337,6 @@ class MB_ImportPostsWithAcfAndPods
                 {
                     $this->posts_imported[$id] = $post_id;
 
-
                     //set translations
                     //translations can be empty
                     //used only if lang != 'it'
@@ -346,6 +346,8 @@ class MB_ImportPostsWithAcfAndPods
                         if ( $italian_post_id )
                             $this->vt_wpml_set_post_translation( $italian_post_id , $post_id , $lang );
                     }
+
+                    $this->writePermalinksLog( $post['post_title'], str_replace('&#038;','&',$post['guid']), get_permalink( $post_id ) );
                 }
 
 
@@ -729,7 +731,6 @@ class MB_ImportPostsWithAcfAndPods
         $check1 = true;
         if ( ! $this->log_file_path )
         {
-
             $this->log_file_path = $dirpath.'/import_log_' . $this->today . '.log';
             $check1 = file_put_contents($this->log_file_path,"##################### START IMPORT A JSON FILE [ $this->today | $now ]"  . "\n", FILE_APPEND);
         }
@@ -738,6 +739,33 @@ class MB_ImportPostsWithAcfAndPods
         $check2 = file_put_contents($this->log_file_path,$msg  . "\n", FILE_APPEND);
 
         return $check1 && $check2;
+    }
+
+    function writePermalinksLog ( $title , $old , $new )
+    {
+        $log_folder = "import_logs";
+        $basePath = $this->plugin_dir;
+        $dirpath = $basePath . '/' . $log_folder;
+
+        if ( ! file_exists($dirpath ) )
+        {
+            // create directory/folder uploads.
+            mkdir($dirpath, 0755 , true );
+        }
+
+        $now = date('G:i:s');
+        $check1 = true;
+        if ( ! $this->log_permalinks_file_path )
+        {
+            $this->log_permalinks_file_path = $dirpath.'/import_log_permalinks' . $this->today . '.log';
+            $check1 = file_put_contents($this->log_file_path,"##################### LOG PERMALINKS [ $this->today | $now ]"  . "\n", FILE_APPEND);
+        }
+
+        $msg = "$title;$old;$new";
+        $check2 = file_put_contents( $this->log_permalinks_file_path,$msg  . "\n", FILE_APPEND);
+
+        return $check1 && $check2;
+
     }
 
 
