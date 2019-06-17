@@ -46,7 +46,7 @@ class VT_UrlToMedia
         $this->upload_dir = wp_upload_dir();
         $this->attachment_filename = filter_var( urldecode( basename( $this->url_to_import ) ) , FILTER_SANITIZE_URL );
 
-        $this->upload_folder = $this->upload_dir['path'] . '/' . $now_folder . '/';
+        $this->upload_folder = $this->upload_dir['path'] . '/';
         if ( ! file_exists($this->upload_folder ) )
         {
             // create directory/folder uploads.
